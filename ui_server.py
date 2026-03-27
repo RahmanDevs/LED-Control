@@ -1,6 +1,6 @@
 """
 UI Server — Web dashboard (ESP-01 edition)
-Replaces serial communication with HTTP polling against data_server.py.
+Receives pushed state from data_server.py via Socket.IO /internal namespace.
 
 Requires: pip install flask flask-socketio requests
 Run:      python ui_server.py   (data_server.py must already be running)
@@ -24,7 +24,6 @@ from datetime import datetime
 # ── Config ────────────────────────────────────────────────────────────────────
 
 DATA_SERVER_URL  = "http://127.0.0.1:5001"
-POLL_INTERVAL    = 0.5   # seconds between data-server polls
 
 # ── App setup ─────────────────────────────────────────────────────────────────
 
@@ -93,56 +92,33 @@ def parse_ua(ua):
     return {"browser": browser, "os": os_name, "device": device}
 
 
-# ── Data server polling ───────────────────────────────────────────────────────
+# ── Internal Socket.IO namespace (data_server connects here) ─────────────────
 
-def data_poller():
+@socketio.on("state_push", namespace="/internal")
+def handle_state_push(data):
     """
-    Background task: poll data_server every POLL_INTERVAL seconds.
-    Emits distance_update and arduino_status events on changes.
-    Replaces serial_reader() + monitor_arduino() from app.py.
+    data_server emits 'state_push' on the /internal namespace whenever
+    distance, LED state, or connection status changes.
+    Payload: { distance_cm, led_state, esp_connected }
     """
     global esp_connected, led_state, distance_cm
-    prev_connected = False
-    prev_led       = None
-    print("[POLLER] Data poller started")
 
-    while True:
-        time.sleep(POLL_INTERVAL)
-        try:
-            r    = requests.get(f"{DATA_SERVER_URL}/api/sensor", timeout=2)
-            data = r.json()
+    new_distance  = data.get("distance_cm", distance_cm)
+    new_led       = data.get("led_state", led_state)
+    new_connected = data.get("esp_connected", esp_connected)
 
-            new_connected = data.get("esp_connected", False)
-            new_distance  = data.get("distance_cm", -1.0)
-            new_led       = data.get("led_state", "OFF")
+    distance_cm = new_distance
+    socketio.emit("distance_update", {"cm": distance_cm})
 
-            # Emit distance every poll (UI expects continuous updates)
-            distance_cm = new_distance
-            socketio.emit("distance_update", {"cm": distance_cm})
+    if new_led != led_state:
+        led_state = new_led
+        socketio.emit("state_update", {"state": led_state})
 
-            # Emit LED state only on change
-            if new_led != prev_led:
-                led_state = new_led
-                socketio.emit("state_update", {"state": led_state})
-                prev_led = new_led
-
-            # Emit connection status only on change
-            if new_connected != prev_connected:
-                esp_connected = new_connected
-                ts = datetime.now().strftime("%H:%M:%S")
-                print(f"[{ts}] Arduino {'connected' if esp_connected else 'disconnected'}")
-                socketio.emit("arduino_status", {"connected": esp_connected})
-
-            prev_connected = new_connected
-
-        except requests.RequestException:
-            if prev_connected:
-                esp_connected  = False
-                prev_connected = False
-                socketio.emit("arduino_status", {"connected": False})
-                print("[POLLER] data_server unreachable")
-        except Exception as e:
-            print(f"[POLLER] unexpected error: {e}")
+    if new_connected != esp_connected:
+        esp_connected = new_connected
+        ts = datetime.now().strftime("%H:%M:%S")
+        print(f"[{ts}] Arduino {'connected' if esp_connected else 'disconnected'}")
+        socketio.emit("arduino_status", {"connected": esp_connected})
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -308,5 +284,4 @@ def handle_led_command(data):
 if __name__ == "__main__":
     print(f"UI server starting on port 8000")
     print(f"  Data server: {DATA_SERVER_URL}")
-    socketio.start_background_task(data_poller)
     socketio.run(app, host="0.0.0.0", port=8000, debug=False)
