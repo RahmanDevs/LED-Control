@@ -15,6 +15,8 @@ const statMin    = document.getElementById("stat-min");
 const statMax    = document.getElementById("stat-max");
 const statCount  = document.getElementById("stat-count");
 const consoleBody= document.getElementById("console-body");
+const clientsBody= document.getElementById("clients-body");
+const clientCount= document.getElementById("client-count");
 
 // State
 let currentUnit = "cm";   // "cm" | "in"
@@ -133,6 +135,22 @@ socket.on("arduino_status", (data) => {
     distValue.classList.remove("oor");
     updateBar(-1);
   }
+});
+
+socket.on("clients_update", (data) => {
+  const ips = data.ips || [];
+  clientCount.textContent = ips.length;
+  clientsBody.innerHTML = "";
+  if (ips.length === 0) {
+    clientsBody.innerHTML = '<span class="no-clients">No clients connected</span>';
+    return;
+  }
+  ips.forEach(ip => {
+    const chip = document.createElement("div");
+    chip.className = "ip-chip";
+    chip.innerHTML = `<span class="chip-dot"></span>${ip}`;
+    clientsBody.appendChild(chip);
+  });
 });
 
 socket.on("distance_update", (data) => {
