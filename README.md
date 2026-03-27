@@ -118,6 +118,3 @@ void loop() {
 
 ---
 
-## License
-
-MIT
