@@ -1,0 +1,150 @@
+/* ── site-wide navigation bar ──────────────────────────────────────────── */
+
+.site-nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 48px;
+  background: rgba(13, 15, 16, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid #2a2f33;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+/* brand */
+.nav-brand {
+  font-size: .72rem;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: #4a5258;
+  text-decoration: none;
+  transition: color .2s;
+  white-space: nowrap;
+}
+.nav-brand:hover { color: #c8d0d6; }
+
+/* ── desktop links ────────────────────────────── */
+.nav-links {
+  display: flex;
+  gap: 4px;
+}
+.nav-link {
+  font-size: .68rem;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: #4a5258;
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  transition: color .2s, border-color .2s, background .2s;
+  white-space: nowrap;
+}
+.nav-link:hover {
+  color: #c8d0d6;
+  background: rgba(255,255,255,.04);
+}
+.nav-link.active {
+  color: #c8d0d6;
+  border-color: #2a2f33;
+  background: rgba(255,255,255,.06);
+}
+
+/* ── hamburger button (hidden on desktop) ─────── */
+.nav-toggle {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.nav-toggle .bar {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: #4a5258;
+  border-radius: 1px;
+  transition: background .2s, transform .25s, opacity .2s;
+}
+.nav-toggle:hover .bar { background: #c8d0d6; }
+
+/* animate bars → X when open */
+.nav-open .nav-toggle .bar:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-open .nav-toggle .bar:nth-child(2) { opacity: 0; }
+.nav-open .nav-toggle .bar:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* ── mobile drawer ────────────────────────────── */
+.nav-drawer {
+  position: fixed;
+  top: 48px; left: 0; right: 0;
+  z-index: 199;
+  background: rgba(13, 15, 16, 0.97);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid #2a2f33;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  transform: translateY(-8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform .22s ease, opacity .22s ease;
+}
+.nav-drawer.open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.drawer-link {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: .78rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #4a5258;
+  text-decoration: none;
+  padding: 14px 28px;
+  border-left: 2px solid transparent;
+  transition: color .2s, border-color .2s, background .2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.drawer-link:hover,
+.drawer-link:active { color: #c8d0d6; background: rgba(255,255,255,.04); }
+.drawer-link.active {
+  color: #c8d0d6;
+  border-left-color: #c8d0d6;
+  background: rgba(255,255,255,.05);
+}
+
+/* ── backdrop ─────────────────────────────────── */
+.nav-backdrop {
+  display: none;
+  position: fixed;
+  inset: 48px 0 0 0;
+  z-index: 198;
+  background: rgba(0,0,0,.45);
+  opacity: 0;
+  transition: opacity .22s ease;
+}
+.nav-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── push page content below bar ─────────────── */
+body { padding-top: 48px; }
+
+/* ── mobile breakpoint ────────────────────────── */
+@media (max-width: 560px) {
+  .nav-links  { display: none; }
+  .nav-toggle { display: flex; }
+  .nav-backdrop { display: block; pointer-events: none; }
+}

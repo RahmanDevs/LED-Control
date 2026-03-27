@@ -1,0 +1,63 @@
+<nav class="site-nav" id="site-nav">
+  <a class="nav-brand" href="/">iot.fikrow.com</a>
+
+  <!-- desktop links -->
+  <div class="nav-links" id="nav-links">
+    <a class="nav-link" href="/">Dashboard</a>
+    <a class="nav-link" href="/lcd-control/">LED Control</a>
+    <a class="nav-link" href="/distance-measurement/">Distance</a>
+  </div>
+
+  <!-- mobile hamburger -->
+  <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu" aria-expanded="false">
+    <span class="bar"></span>
+    <span class="bar"></span>
+    <span class="bar"></span>
+  </button>
+</nav>
+
+<!-- mobile dropdown (outside nav so it doesn't affect nav height) -->
+<div class="nav-drawer" id="nav-drawer">
+  <a class="drawer-link" href="/">Dashboard</a>
+  <a class="drawer-link" href="/lcd-control/">LED Control</a>
+  <a class="drawer-link" href="/distance-measurement/">Distance</a>
+</div>
+<div class="nav-backdrop" id="nav-backdrop"></div>
+
+<script>
+  (function () {
+    // highlight active link
+    var path = location.pathname.replace(/\/$/, '') || '/';
+    document.querySelectorAll('.nav-link, .drawer-link').forEach(function (a) {
+      var href = a.getAttribute('href').replace(/\/$/, '') || '/';
+      if (href === path) a.classList.add('active');
+    });
+
+    // hamburger toggle
+    var nav      = document.getElementById('site-nav');
+    var toggle   = document.getElementById('nav-toggle');
+    var drawer   = document.getElementById('nav-drawer');
+    var backdrop = document.getElementById('nav-backdrop');
+
+    function openMenu() {
+      nav.classList.add('nav-open');
+      drawer.classList.add('open');
+      backdrop.classList.add('open');
+      toggle.setAttribute('aria-expanded', 'true');
+    }
+    function closeMenu() {
+      nav.classList.remove('nav-open');
+      drawer.classList.remove('open');
+      backdrop.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+
+    toggle.addEventListener('click', function () {
+      nav.classList.contains('nav-open') ? closeMenu() : openMenu();
+    });
+    backdrop.addEventListener('click', closeMenu);
+    document.querySelectorAll('.drawer-link').forEach(function (a) {
+      a.addEventListener('click', closeMenu);
+    });
+  })();
+</script>

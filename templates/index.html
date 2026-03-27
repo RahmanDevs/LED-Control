@@ -3,11 +3,14 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Projects — iot.fikrow.com</title>
+  <title>FIKROW IoT Projects</title>
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/gallery.css') }}">
 </head>
 <body>
+
+  {% include 'nav.html' %}
 
   <div class="page">
 
@@ -46,7 +49,30 @@
         </div>
       </a>
 
-      <!-- Placeholder card — add more projects here -->
+      <!-- Distance Measurement -->
+      <a class="proj-card" href="/distance-measurement/"
+         style="--card-accent: #00d4ff;"
+         title="Open Distance Measurement">
+        <div class="proj-icon">&#x1F4CF;</div>
+        <div class="proj-header">
+          <span class="proj-name">Distance Measurement</span>
+          <span class="proj-status status-live">Live</span>
+        </div>
+        <p class="proj-desc">
+          Real-time HC-SR04 ultrasonic distance readings over WebSocket.
+          Displays live distance with range bar, min/max stats, and a
+          scrollable reading log. Unit toggle between cm and inches.
+        </p>
+        <div class="proj-tags">
+          <span class="tag">Arduino Mega</span>
+          <span class="tag">HC-SR04</span>
+          <span class="tag">Flask</span>
+          <span class="tag">Socket.IO</span>
+        </div>
+        <div class="proj-footer">
+          <span class="proj-link">Open &#x2192;</span>
+        </div>
+      </a>
 
     </div>
 
