@@ -1,57 +1,56 @@
 """
-Arduino Mega LED Control — WebSocket edition
-Requires: pip install flask flask-socketio eventlet pyserial
-Run:      python app.py
+UI Server — Web dashboard (ESP-01 edition)
+Replaces serial communication with HTTP polling against data_server.py.
+
+Requires: pip install flask flask-socketio requests
+Run:      python ui_server.py   (data_server.py must already be running)
 """
+
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 from werkzeug.middleware.proxy_fix import ProxyFix
-import serial
+import requests
 import time
 import re
 import os
-import sys
 import subprocess
 import threading
 from datetime import datetime
 
+# ── Config ────────────────────────────────────────────────────────────────────
+
+DATA_SERVER_URL  = "http://127.0.0.1:5001"
+POLL_INTERVAL    = 0.5   # seconds between data-server polls
+
+# ── App setup ─────────────────────────────────────────────────────────────────
+
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=2, x_proto=2, x_host=1)
 app.config["SECRET_KEY"] = "arduino-secret"
-# socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
-socketio = SocketIO(app, cors_allowed_origins="https://iot.fikrow.com", async_mode="eventlet")
+socketio = SocketIO(app, cors_allowed_origins=["https://iot.fikrow.com", "http://localhost:8000", "http://127.0.0.1:8000"], async_mode="threading")
 
+esp_connected = False
+led_state     = "OFF"
+distance_cm   = -1.0
 
-arduino           = None
-arduino_connected = False
-led_state         = "OFF"
-distance_cm       = -1.0   # latest HC-SR04 reading; -1 = out of range / no data
-
-# sid -> ip
-connected_clients = {}
-
-# ip -> { first_seen, tabs, commands, sessions }
-ip_details = {}
+connected_clients: dict[str, str] = {}   # sid -> ip
+ip_details:        dict           = {}   # ip -> analytics
 
 
 # ── UA parser ─────────────────────────────────────────────────────────────────
 
 def get_client_ip():
-    """
-    Resolve the real client IP through Cloudflare + Nginx proxies.
-    Priority:
-      1. CF-Connecting-IP  — set by Cloudflare, always the true client IP
-      2. X-Forwarded-For   — first entry in the chain
-      3. remote_addr       — fallback for direct / LAN connections
-    """
     cf_ip = request.headers.get("CF-Connecting-IP")
     if cf_ip:
         return cf_ip.strip()
     forwarded_for = request.headers.get("X-Forwarded-For", "")
     if forwarded_for:
         return forwarded_for.split(",")[0].strip()
-    return get_client_ip()
+    return request.remote_addr
 
 
 def parse_ua(ua):
@@ -94,107 +93,56 @@ def parse_ua(ua):
     return {"browser": browser, "os": os_name, "device": device}
 
 
-# ── Serial ────────────────────────────────────────────────────────────────────
+# ── Data server polling ───────────────────────────────────────────────────────
 
-def get_serial():
-    global arduino
-    if arduino is None:
-        arduino = serial.Serial("COM6", 9600)
-        time.sleep(2)
-    return arduino
+def data_poller():
+    """
+    Background task: poll data_server every POLL_INTERVAL seconds.
+    Emits distance_update and arduino_status events on changes.
+    Replaces serial_reader() + monitor_arduino() from app.py.
+    """
+    global esp_connected, led_state, distance_cm
+    prev_connected = False
+    prev_led       = None
+    print("[POLLER] Data poller started")
 
-
-def query_initial_state():
-    """Ask the Arduino for its current LED state on server startup."""
-    global led_state, arduino_connected
-    try:
-        ser = get_serial()
-        ser.write(b"STATE?\n")
-        ser.timeout = 2
-        response = ser.readline().decode().strip().upper()
-        if response in ("ON", "OFF"):
-            led_state = response
-            print(f"[INIT] Arduino LED state: {led_state}")
-        else:
-            print(f"[INIT] No valid state received (got: {repr(response)}), defaulting to {led_state}")
-        arduino_connected = True
-    except Exception as e:
-        print(f"[INIT] Could not query Arduino state: {e}, defaulting to {led_state}")
-        arduino_connected = False
-
-
-def _check_serial_alive(ser):
-    """Return True if the serial port is still alive. Write is more reliable than
-    in_waiting on Windows when a USB device is physically unplugged."""
-    try:
-        ser.write(b"")      # zero-byte write flushes the driver state check
-        _ = ser.in_waiting  # ClearCommError — raises on Windows if port is gone
-        return True
-    except (serial.SerialException, OSError):
-        return False
-
-
-def serial_reader():
-    """Background task: continuously read incoming serial lines and parse DIST: messages."""
-    global arduino, arduino_connected, distance_cm
-    print("[READER] Serial reader started")
     while True:
-        if arduino is None or not arduino_connected:
-            socketio.sleep(1)
-            continue
+        time.sleep(POLL_INTERVAL)
         try:
-            if arduino.in_waiting > 0:
-                line = arduino.readline().decode(errors="ignore").strip()
-                if line.startswith("DIST:"):
-                    try:
-                        val = float(line.split(":")[1])
-                        if val > 400.0 or val < -1.0:   # guard against garbage readings
-                            val = -1.0
-                        distance_cm = round(val, 1)
-                        socketio.emit("distance_update", {"cm": distance_cm})
-                    except (ValueError, IndexError):
-                        pass
-            else:
-                socketio.sleep(0)
-        except (serial.SerialException, OSError):
-            socketio.sleep(1)
+            r    = requests.get(f"{DATA_SERVER_URL}/api/sensor", timeout=2)
+            data = r.json()
 
+            new_connected = data.get("esp_connected", False)
+            new_distance  = data.get("distance_cm", -1.0)
+            new_led       = data.get("led_state", "OFF")
 
-def monitor_arduino():
-    """Background task: poll serial every 3 s and emit arduino_status on changes."""
-    global arduino, arduino_connected, led_state
-    print("[MONITOR] Arduino monitor started")
-    while True:
-        socketio.sleep(3)
-        prev = arduino_connected
-        if arduino is None:
-            try:
-                new_ser = serial.Serial("COM6", 9600)
-                socketio.sleep(2)
-                arduino = new_ser
-                arduino_connected = True
-            except Exception:
-                arduino_connected = False
-        else:
-            if _check_serial_alive(arduino):
-                arduino_connected = True
-            else:
-                try:
-                    arduino.close()
-                except Exception:
-                    pass
-                arduino = None
-                arduino_connected = False
+            # Emit distance every poll (UI expects continuous updates)
+            distance_cm = new_distance
+            socketio.emit("distance_update", {"cm": distance_cm})
 
-        if arduino_connected != prev:
-            ts = datetime.now().strftime("%H:%M:%S")
-            status = "connected" if arduino_connected else "disconnected"
-            print(f"[{ts}] Arduino {status}")
-            socketio.emit("arduino_status", {"connected": arduino_connected})
-            if arduino_connected:
-                # Arduino always resets to OFF on power cycle — sync server state
-                led_state = "OFF"
+            # Emit LED state only on change
+            if new_led != prev_led:
+                led_state = new_led
                 socketio.emit("state_update", {"state": led_state})
+                prev_led = new_led
+
+            # Emit connection status only on change
+            if new_connected != prev_connected:
+                esp_connected = new_connected
+                ts = datetime.now().strftime("%H:%M:%S")
+                print(f"[{ts}] Arduino {'connected' if esp_connected else 'disconnected'}")
+                socketio.emit("arduino_status", {"connected": esp_connected})
+
+            prev_connected = new_connected
+
+        except requests.RequestException:
+            if prev_connected:
+                esp_connected  = False
+                prev_connected = False
+                socketio.emit("arduino_status", {"connected": False})
+                print("[POLLER] data_server unreachable")
+        except Exception as e:
+            print(f"[POLLER] unexpected error: {e}")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -212,7 +160,6 @@ def _broadcast_clients():
 
 
 def _exit_after(delay=0.4):
-    """Wait briefly so the HTTP response is sent, then force-exit."""
     def _do():
         time.sleep(delay)
         os._exit(0)
@@ -259,8 +206,10 @@ def restart():
 
 @socketio.on("connect")
 def handle_connect():
-    ip  = get_client_ip()
+    ip  = get_client_ip() or "unknown"
     sid = request.sid  # type: ignore[attr-defined]
+    if not sid:
+        return
     connected_clients[sid] = ip
 
     ua_info = parse_ua(request.headers.get("User-Agent", ""))
@@ -282,13 +231,15 @@ def handle_connect():
     _log(ip, "Client connected", "ok")
     _broadcast_clients()
     emit("state_update",   {"state": led_state})
-    emit("arduino_status", {"connected": arduino_connected})
+    emit("arduino_status", {"connected": esp_connected})
 
 
 @socketio.on("disconnect")
 def handle_disconnect():
     sid = request.sid  # type: ignore[attr-defined]
-    ip  = connected_clients.pop(sid, get_client_ip())
+    if not sid:
+        return
+    ip  = connected_clients.pop(sid, "unknown")
     if ip in ip_details:
         ip_details[ip]["tabs"] = max(0, ip_details[ip]["tabs"] - 1)
         ip_details[ip]["sessions"].pop(sid, None)
@@ -324,24 +275,22 @@ def handle_get_ip_detail(data):
 
 @socketio.on("led_command")
 def handle_led_command(data):
-    global led_state, arduino, arduino_connected
+    global led_state
     ip  = get_client_ip()
     cmd = data.get("state", "").upper()
     if cmd not in ("ON", "OFF"):
         return
 
     try:
-        get_serial().write(f"{cmd}\n".encode())
-    except (serial.SerialException, OSError) as e:
-        try:
-            if arduino is not None:
-                arduino.close()
-        except Exception:
-            pass
-        arduino = None
-        arduino_connected = False
+        r = requests.post(
+            f"{DATA_SERVER_URL}/api/command",
+            json={"command": cmd},
+            timeout=2,
+        )
+        r.raise_for_status()
+    except requests.RequestException as e:
+        _log(ip, f"data_server unreachable: {e}", "err")
         socketio.emit("arduino_status", {"connected": False})
-        _log(ip, f"Arduino disconnected: {e}", "err")
         return
 
     led_state = cmd
@@ -357,7 +306,7 @@ def handle_led_command(data):
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    query_initial_state()
-    socketio.start_background_task(monitor_arduino)
-    socketio.start_background_task(serial_reader)
+    print(f"UI server starting on port 8000")
+    print(f"  Data server: {DATA_SERVER_URL}")
+    socketio.start_background_task(data_poller)
     socketio.run(app, host="0.0.0.0", port=8000, debug=False)

@@ -44,7 +44,7 @@ Live HC-SR04 ultrasonic distance readings streamed over WebSocket. Displays curr
 | Sensor | HC-SR04 Ultrasonic |
 | TRIG Pin | Digital Pin 9 |
 | ECHO Pin | Digital Pin 10 |
-| Range | 2 cm – 400 cm |
+| Range | 3 cm – 30 cm |
 
 ### Shared
 
@@ -59,16 +59,20 @@ Live HC-SR04 ultrasonic distance readings streamed over WebSocket. Displays curr
 
 ```
 LED Control/
-├── app.py                        # Flask server, socket events, serial logic
+├── app.py                        # Original server — serial (Arduino Mega via USB)
+├── data_server.py                # Data server — REST API bridge for ESP-01 (port 5001)
+├── ui_server.py                  # UI server — web dashboard polling data_server (port 8000)
 ├── main/
 │   └── main.ino                  # Arduino sketch (LED + HC-SR04)
 ├── templates/
 │   ├── index.html                # Project gallery / dashboard
+│   ├── nav.html                  # Shared navigation partial
 │   ├── led_control.html          # LED control page
 │   └── distance_measurement.html # Distance measurement page
 ├── static/
 │   ├── css/
 │   │   ├── gallery.css           # Gallery styles
+│   │   ├── nav.css               # Navigation styles
 │   │   ├── style.css             # LED control styles
 │   │   └── distance.css          # Distance measurement styles
 │   └── js/
@@ -81,24 +85,35 @@ LED Control/
 
 ## Requirements
 
-**Python**
+**Python — original serial mode (`app.py`)**
 ```
 flask
 flask-socketio
 eventlet
 pyserial
 ```
-
-Install with:
 ```bash
 pip install flask flask-socketio eventlet pyserial
+```
+
+**Python — ESP-01 mode (`data_server.py` + `ui_server.py`)**
+```
+flask
+flask-socketio
+eventlet
+requests
+```
+```bash
+pip install flask flask-socketio eventlet requests
 ```
 
 ---
 
 ## Setup
 
-### 1. Upload Arduino sketch
+### Mode A — Arduino Mega via USB serial (`app.py`)
+
+#### 1. Upload Arduino sketch
 
 Open `main/main.ino` in the Arduino IDE and upload to your Arduino Mega.
 
@@ -108,22 +123,49 @@ Wire the HC-SR04:
 - TRIG → Pin 9
 - ECHO → Pin 10
 
-### 2. Set your COM port
+#### 2. Set your COM port
 
 Edit `app.py` to match your system (both occurrences):
 ```python
 arduino = serial.Serial("COM6", 9600)
 ```
 
-### 3. Run the server
+#### 3. Run the server
 
 ```bash
 python app.py
 ```
 
-### 4. Open the web UI
+#### 4. Open the web UI
 
 Navigate to `http://localhost:8000` — or from any device on the same network, `http://<your-ip>:8000`.
+
+---
+
+### Mode B — ESP-01 over Wi-Fi (`data_server.py` + `ui_server.py`)
+
+#### 1. Start the data server
+
+```bash
+python data_server.py   # listens on port 5001
+```
+
+#### 2. Start the UI server
+
+```bash
+python ui_server.py     # listens on port 8000
+```
+
+#### 3. Flash your ESP-01
+
+The ESP-01 sketch must:
+- `POST http://<server-ip>:5001/api/sensor` every ~500 ms with `{"distance_cm": 23.4, "led_state": "OFF"}`
+- `GET  http://<server-ip>:5001/api/command` every ~500 ms to pick up queued LED commands
+- `POST http://<server-ip>:5001/api/command/ack` after executing a command
+
+#### 4. Open the web UI
+
+Navigate to `http://localhost:8000`.
 
 ---
 
@@ -157,3 +199,4 @@ Serial protocol summary:
 |---|---|
 | `main` | LED control only |
 | `feature/distance-measurement` | LED control + HC-SR04 distance measurement |
+| `feature/esp01-api-server` | Separate data server + UI server for ESP-01 Wi-Fi mode |
