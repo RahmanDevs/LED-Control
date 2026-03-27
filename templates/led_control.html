@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Arduino Mega Control</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+  <div class="header">
+    <p class="label">WebSocket &mdash; COM6 @ 9600 baud</p>
+    <h1>Arduino <span>Mega</span><br>LED Control</h1>
+  </div>
+
+  <div class="card" id="card">
+
+    <!-- WebSocket connection badge -->
+    <div class="status-row">
+      <div class="dot" id="ws-dot"></div>
+      <span id="ws-label">Connecting…</span>
+    </div>
+
+    <!-- LED state indicator -->
+    <div class="led-status">
+      <span class="led-status-label">Current State</span>
+      <div class="led-bulb off" id="bulb"></div>
+      <span class="led-state-text" id="state-text">—</span>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <button class="btn btn-on" id="btn-on" onclick="sendCommand('ON')">
+        <span class="btn-icon">◉</span>
+        LED ON
+      </button>
+      <button class="btn btn-off" id="btn-off" onclick="sendCommand('OFF')">
+        <span class="btn-icon">◎</span>
+        LED OFF
+      </button>
+    </div>
+
+  </div>
+
+  <!-- Connected clients -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>&#x25B8; Connected Clients</span>
+      <span class="badge" id="client-count">0</span>
+    </div>
+    <div class="clients-body" id="clients-body">
+      <span class="no-clients">No clients connected</span>
+    </div>
+  </div>
+
+  <!-- IP detail drawer -->
+  <div class="detail-drawer" id="detail-drawer">
+    <div class="detail-header">
+      <span>&#x25B8; IP Detail &mdash; <span id="detail-ip">—</span></span>
+      <button class="detail-close" onclick="closeDetail()">&#x2715;</button>
+    </div>
+    <div class="detail-body">
+      <div class="detail-stats">
+        <div class="stat-box">
+          <span class="stat-label">First Seen</span>
+          <span class="stat-value" id="detail-first">—</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Active Tabs</span>
+          <span class="stat-value" id="detail-tabs">—</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Commands</span>
+          <span class="stat-value" id="detail-total">—</span>
+        </div>
+      </div>
+      <span class="detail-cmd-title">Active Sessions</span>
+      <div class="session-list" id="detail-sessions"></div>
+      <span class="detail-cmd-title">Command History</span>
+      <div class="detail-cmd-list" id="detail-cmds"></div>
+    </div>
+  </div>
+
+  <!-- Console log -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>&#x25B8; Serial Console</span>
+      <button class="clear-btn" onclick="clearLog()">Clear</button>
+    </div>
+    <div class="console-body" id="console-body"></div>
+  </div>
+
+  <div class="meta">
+    <span>Arduino Mega 2560</span>
+    <span>Pin 13</span>
+    <span>Flask-SocketIO</span>
+  </div>
+
+  <div class="server-controls">
+    <button class="server-btn server-btn-restart" onclick="restartServer()">&#x21BA; Restart</button>
+    <button class="server-btn server-btn-stop"    onclick="shutdownServer()">&#x23FC; Stop</button>
+  </div>
+
+  <!-- Confirmation modal -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal-card" id="modal-card">
+      <div class="modal-icon"  id="modal-icon"></div>
+      <div class="modal-title" id="modal-title"></div>
+      <div class="modal-msg"   id="modal-msg"></div>
+      <div class="modal-actions">
+        <button class="modal-cancel"  onclick="closeModal()">Cancel</button>
+        <button class="modal-confirm" id="modal-confirm-btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+</body>
+</html>

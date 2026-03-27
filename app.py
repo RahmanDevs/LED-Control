@@ -6,6 +6,7 @@ Run:      python app.py
 
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
+from werkzeug.middleware.proxy_fix import ProxyFix
 import serial
 import time
 import re
@@ -16,8 +17,11 @@ import threading
 from datetime import datetime
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=2, x_proto=2, x_host=1)
 app.config["SECRET_KEY"] = "arduino-secret"
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+# socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+socketio = SocketIO(app, cors_allowed_origins="https://iot.fikrow.com", async_mode="eventlet")
+
 
 arduino   = None
 led_state = "OFF"
@@ -30,6 +34,23 @@ ip_details = {}
 
 
 # ── UA parser ─────────────────────────────────────────────────────────────────
+
+def get_client_ip():
+    """
+    Resolve the real client IP through Cloudflare + Nginx proxies.
+    Priority:
+      1. CF-Connecting-IP  — set by Cloudflare, always the true client IP
+      2. X-Forwarded-For   — first entry in the chain
+      3. remote_addr       — fallback for direct / LAN connections
+    """
+    cf_ip = request.headers.get("CF-Connecting-IP")
+    if cf_ip:
+        return cf_ip.strip()
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return get_client_ip()
+
 
 def parse_ua(ua):
     browser = "Unknown"
@@ -123,8 +144,14 @@ def _exit_after(delay=0.4):
 # ── HTTP routes ───────────────────────────────────────────────────────────────
 
 @app.route("/")
-def home():
+def gallery():
     return render_template("index.html")
+
+
+@app.route("/lcd-control/")
+@app.route("/lcd-control")
+def led_control():
+    return render_template("led_control.html")
 
 
 @app.route("/shutdown", methods=["POST"])
@@ -148,7 +175,7 @@ def restart():
 
 @socketio.on("connect")
 def handle_connect():
-    ip  = request.remote_addr
+    ip  = get_client_ip()
     sid = request.sid  # type: ignore[attr-defined]
     connected_clients[sid] = ip
 
@@ -176,7 +203,7 @@ def handle_connect():
 @socketio.on("disconnect")
 def handle_disconnect():
     sid = request.sid  # type: ignore[attr-defined]
-    ip  = connected_clients.pop(sid, request.remote_addr)
+    ip  = connected_clients.pop(sid, get_client_ip())
     if ip in ip_details:
         ip_details[ip]["tabs"] = max(0, ip_details[ip]["tabs"] - 1)
         ip_details[ip]["sessions"].pop(sid, None)
@@ -208,7 +235,7 @@ def handle_get_ip_detail(data):
 @socketio.on("led_command")
 def handle_led_command(data):
     global led_state
-    ip  = request.remote_addr
+    ip  = get_client_ip()
     cmd = data.get("state", "").upper()
     if cmd not in ("ON", "OFF"):
         return
