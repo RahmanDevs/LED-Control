@@ -2,6 +2,8 @@ const socket = io();
 
 const dot         = document.getElementById('ws-dot');
 const wsLabel     = document.getElementById('ws-label');
+const ardDot      = document.getElementById('ard-dot');
+const ardLabel    = document.getElementById('ard-label');
 const bulb        = document.getElementById('bulb');
 const stateText   = document.getElementById('state-text');
 const btnOn       = document.getElementById('btn-on');
@@ -12,7 +14,9 @@ const clientsBody = document.getElementById('clients-body');
 const clientCount = document.getElementById('client-count');
 const drawer      = document.getElementById('detail-drawer');
 
-let activeChipIp = null;
+let activeChipIp      = null;
+let arduinoConnected  = false;
+let currentLedState   = 'OFF';
 
 // single delegated listener — works for both mouse and touch
 function onChipActivate(e) {
@@ -172,6 +176,7 @@ function restartServer() {
 
 // ── apply LED state to all UI elements ───────────
 function applyState(state) {
+  currentLedState = state;
   const isOn = state === 'ON';
   bulb.classList.toggle('on',  isOn);
   bulb.classList.toggle('off', !isOn);
@@ -180,12 +185,16 @@ function applyState(state) {
   card.style.setProperty('--stripe', isOn
     ? 'linear-gradient(90deg, var(--accent-on), #00bfff, transparent)'
     : 'linear-gradient(90deg, var(--accent-off), #ff8800, transparent)');
-  btnOn.classList.toggle('dimmed',  isOn);
-  btnOff.classList.toggle('dimmed', !isOn);
+  // only apply active-button dimming when Arduino is connected
+  if (arduinoConnected) {
+    btnOn.classList.toggle('dimmed',  isOn);
+    btnOff.classList.toggle('dimmed', !isOn);
+  }
 }
 
 // ── send command to server ───────────────────────
 function sendCommand(cmd) {
+  if (!arduinoConnected) return;
   socket.emit('led_command', { state: cmd });
 }
 
@@ -204,6 +213,31 @@ socket.on('disconnect', () => {
 });
 
 socket.on('state_update',   (d) => applyState(d.state));
+
+socket.on('arduino_status', (d) => {
+  arduinoConnected = d.connected;
+  if (d.connected) {
+    ardDot.classList.remove('arduino-off');
+    ardDot.classList.add('connected');
+    ardLabel.textContent = 'Arduino';
+    ardLabel.style.color = 'var(--accent-on)';
+    // restore button state based on current LED state
+    applyState(currentLedState);
+  } else {
+    ardDot.classList.remove('connected');
+    ardDot.classList.add('arduino-off');
+    ardLabel.textContent = 'Arduino Disconnected';
+    ardLabel.style.color = 'var(--accent-off)';
+    // dim both buttons — controls are unavailable
+    btnOn.classList.add('dimmed');
+    btnOff.classList.add('dimmed');
+    // grey out the bulb indicator
+    bulb.classList.remove('on');
+    bulb.classList.add('off');
+    stateText.textContent = '—';
+    stateText.style.color = 'var(--muted)';
+  }
+});
 socket.on('clients_update', (d) => updateClients(d.ips));
 socket.on('log', (d) => {
   addLog(d.time, d.ip, d.msg, d.cls);

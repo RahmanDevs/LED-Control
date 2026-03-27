@@ -23,8 +23,9 @@ app.config["SECRET_KEY"] = "arduino-secret"
 socketio = SocketIO(app, cors_allowed_origins="https://iot.fikrow.com", async_mode="eventlet")
 
 
-arduino   = None
-led_state = "OFF"
+arduino           = None
+arduino_connected = False
+led_state         = "OFF"
 
 # sid -> ip
 connected_clients = {}
@@ -104,7 +105,7 @@ def get_serial():
 
 def query_initial_state():
     """Ask the Arduino for its current LED state on server startup."""
-    global led_state
+    global led_state, arduino_connected
     try:
         ser = get_serial()
         ser.write(b"STATE?\n")
@@ -115,8 +116,58 @@ def query_initial_state():
             print(f"[INIT] Arduino LED state: {led_state}")
         else:
             print(f"[INIT] No valid state received (got: {repr(response)}), defaulting to {led_state}")
+        arduino_connected = True
     except Exception as e:
         print(f"[INIT] Could not query Arduino state: {e}, defaulting to {led_state}")
+        arduino_connected = False
+
+
+def _check_serial_alive(ser):
+    """Return True if the serial port is still alive. Write is more reliable than
+    in_waiting on Windows when a USB device is physically unplugged."""
+    try:
+        ser.write(b"")      # zero-byte write flushes the driver state check
+        _ = ser.in_waiting  # ClearCommError — raises on Windows if port is gone
+        return True
+    except (serial.SerialException, OSError):
+        return False
+
+
+def monitor_arduino():
+    """Background task: poll serial every 3 s and emit arduino_status on changes."""
+    global arduino, arduino_connected, led_state
+    print("[MONITOR] Arduino monitor started")
+    while True:
+        socketio.sleep(3)
+        prev = arduino_connected
+        if arduino is None:
+            try:
+                new_ser = serial.Serial("COM6", 9600)
+                socketio.sleep(2)
+                arduino = new_ser
+                arduino_connected = True
+            except Exception:
+                arduino_connected = False
+        else:
+            if _check_serial_alive(arduino):
+                arduino_connected = True
+            else:
+                try:
+                    arduino.close()
+                except Exception:
+                    pass
+                arduino = None
+                arduino_connected = False
+
+        if arduino_connected != prev:
+            ts = datetime.now().strftime("%H:%M:%S")
+            status = "connected" if arduino_connected else "disconnected"
+            print(f"[{ts}] Arduino {status}")
+            socketio.emit("arduino_status", {"connected": arduino_connected})
+            if arduino_connected:
+                # Arduino always resets to OFF on power cycle — sync server state
+                led_state = "OFF"
+                socketio.emit("state_update", {"state": led_state})
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -197,7 +248,8 @@ def handle_connect():
 
     _log(ip, "Client connected", "ok")
     _broadcast_clients()
-    emit("state_update", {"state": led_state})
+    emit("state_update",   {"state": led_state})
+    emit("arduino_status", {"connected": arduino_connected})
 
 
 @socketio.on("disconnect")
@@ -234,13 +286,26 @@ def handle_get_ip_detail(data):
 
 @socketio.on("led_command")
 def handle_led_command(data):
-    global led_state
+    global led_state, arduino, arduino_connected
     ip  = get_client_ip()
     cmd = data.get("state", "").upper()
     if cmd not in ("ON", "OFF"):
         return
 
-    get_serial().write(f"{cmd}\n".encode())
+    try:
+        get_serial().write(f"{cmd}\n".encode())
+    except (serial.SerialException, OSError) as e:
+        try:
+            if arduino is not None:
+                arduino.close()
+        except Exception:
+            pass
+        arduino = None
+        arduino_connected = False
+        socketio.emit("arduino_status", {"connected": False})
+        _log(ip, f"Arduino disconnected: {e}", "err")
+        return
+
     led_state = cmd
 
     ts = datetime.now().strftime("%H:%M:%S")
@@ -255,4 +320,5 @@ def handle_led_command(data):
 
 if __name__ == "__main__":
     query_initial_state()
+    socketio.start_background_task(monitor_arduino)
     socketio.run(app, host="0.0.0.0", port=8000, debug=False)
