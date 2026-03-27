@@ -26,6 +26,7 @@ socketio = SocketIO(app, cors_allowed_origins="https://iot.fikrow.com", async_mo
 arduino           = None
 arduino_connected = False
 led_state         = "OFF"
+distance_cm       = -1.0   # latest HC-SR04 reading; -1 = out of range / no data
 
 # sid -> ip
 connected_clients = {}
@@ -133,6 +134,30 @@ def _check_serial_alive(ser):
         return False
 
 
+def serial_reader():
+    """Background task: continuously read incoming serial lines and parse DIST: messages."""
+    global arduino, arduino_connected, distance_cm
+    print("[READER] Serial reader started")
+    while True:
+        if arduino is None or not arduino_connected:
+            socketio.sleep(1)
+            continue
+        try:
+            if arduino.in_waiting > 0:
+                line = arduino.readline().decode(errors="ignore").strip()
+                if line.startswith("DIST:"):
+                    try:
+                        val = float(line.split(":")[1])
+                        distance_cm = round(val, 1)
+                        socketio.emit("distance_update", {"cm": distance_cm})
+                    except (ValueError, IndexError):
+                        pass
+            else:
+                socketio.sleep(0)
+        except (serial.SerialException, OSError):
+            socketio.sleep(1)
+
+
 def monitor_arduino():
     """Background task: poll serial every 3 s and emit arduino_status on changes."""
     global arduino, arduino_connected, led_state
@@ -205,6 +230,12 @@ def led_control():
     return render_template("led_control.html")
 
 
+@app.route("/distance-measurement/")
+@app.route("/distance-measurement")
+def distance_measurement():
+    return render_template("distance_measurement.html")
+
+
 @app.route("/shutdown", methods=["POST"])
 def shutdown():
     ts = datetime.now().strftime("%H:%M:%S")
@@ -268,6 +299,11 @@ def handle_get_state():
     emit("state_update", {"state": led_state})
 
 
+@socketio.on("get_distance")
+def handle_get_distance():
+    emit("distance_update", {"cm": distance_cm})
+
+
 @socketio.on("get_ip_detail")
 def handle_get_ip_detail(data):
     ip     = data.get("ip", "")
@@ -321,4 +357,5 @@ def handle_led_command(data):
 if __name__ == "__main__":
     query_initial_state()
     socketio.start_background_task(monitor_arduino)
+    socketio.start_background_task(serial_reader)
     socketio.run(app, host="0.0.0.0", port=8000, debug=False)
