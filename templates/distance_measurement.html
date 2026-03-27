@@ -77,6 +77,28 @@
     </div>
   </div>
 
+  <!-- IP detail drawer -->
+  <div class="detail-drawer" id="detail-drawer">
+    <div class="detail-header">
+      <span>&#x25B8; IP Detail &mdash; <span id="detail-ip">—</span></span>
+      <button class="detail-close" onclick="closeDetail()">&#x2715;</button>
+    </div>
+    <div class="detail-body">
+      <div class="detail-stats">
+        <div class="stat-box">
+          <span class="stat-label">First Seen</span>
+          <span class="stat-value" id="detail-first">—</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Active Tabs</span>
+          <span class="stat-value" id="detail-tabs">—</span>
+        </div>
+      </div>
+      <span class="detail-cmd-title">Active Sessions</span>
+      <div class="session-list" id="detail-sessions"></div>
+    </div>
+  </div>
+
   <!-- Reading log -->
   <div class="panel">
     <div class="panel-header">

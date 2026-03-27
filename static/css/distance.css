@@ -241,6 +241,120 @@ h1 span { color: var(--accent); }
   font-size: .65rem;
 }
 
+/* ── ip detail drawer ─────────────────────────── */
+.detail-drawer {
+  width: min(520px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--accent-dim);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 4px;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height .35s ease, opacity .25s ease;
+  pointer-events: none;
+}
+.detail-drawer.open {
+  max-height: 520px;
+  opacity: 1;
+  pointer-events: auto;
+}
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: .65rem;
+  letter-spacing: .2em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.detail-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 2px;
+  transition: color .2s;
+}
+.detail-close:hover { color: var(--text); }
+.detail-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.detail-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.detail-cmd-title {
+  font-family: var(--mono);
+  font-size: .6rem;
+  letter-spacing: .2em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.session-card {
+  background: rgba(0,0,0,.25);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 24px;
+}
+.session-row {
+  font-family: var(--mono);
+  font-size: .68rem;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.session-key {
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: .58rem;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+}
+.session-val { color: var(--text); }
+.no-cmds {
+  font-family: var(--mono);
+  font-size: .7rem;
+  color: var(--muted);
+}
+
+/* make chips clickable */
+.ip-chip {
+  cursor: pointer;
+  transition: background .2s, border-color .2s, transform .15s;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.ip-chip:hover {
+  background: rgba(126,200,227,.18);
+  border-color: rgba(126,200,227,.5);
+  transform: translateY(-1px);
+}
+.ip-chip:active { transform: translateY(0); }
+.ip-chip.active {
+  background: rgba(126,200,227,.22);
+  border-color: #7ec8e3;
+}
+
 /* ── panel ────────────────────────────────────── */
 .panel {
   background: var(--surface);
