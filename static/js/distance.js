@@ -43,7 +43,7 @@ function fmt(cm) {
   return cm.toFixed(1) + " cm";
 }
 
-// ── Range bar (0–400 cm) ───────────────────────────────────────────────────
+// ── Range bar (3–30 cm) ────────────────────────────────────────────────────
 
 function updateBar(cm) {
   if (cm < 0) {
@@ -51,7 +51,7 @@ function updateBar(cm) {
     rangeMarker.style.left  = "0%";
     return;
   }
-  const pct = Math.min(100, (cm / 400) * 100).toFixed(1) + "%";
+  const pct = Math.min(100, ((cm - 3) / (30 - 3)) * 100).toFixed(1) + "%";
   rangeFill.style.width  = pct;
   rangeMarker.style.left = pct;
 }
