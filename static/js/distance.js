@@ -245,7 +245,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal
 
 function shutdownServer() {
   showConfirm({
-    icon: "⏹",
+    icon: "⏼",
     title: "Stop Server?",
     msg: "This will shut down the Flask server. You will need to restart it manually from the terminal.",
     confirmText: "Stop",
@@ -255,7 +255,7 @@ function shutdownServer() {
       document.body.innerHTML =
         '<div style="font-family:monospace;color:#c8d0d6;display:flex;flex-direction:column;' +
         'align-items:center;justify-content:center;height:100vh;gap:12px;">' +
-        '<span style="font-size:2rem">⏹</span>' +
+        '<span style="font-size:2rem">⏼</span>' +
         '<span style="letter-spacing:.15em">Server stopped.</span></div>';
     }
   });
