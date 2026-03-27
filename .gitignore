@@ -7,8 +7,9 @@ venv/
 .venv/
 
 # Scaffold / prototypes
-Scaffold_File/
+/Scaffold_File
 
 # OS
 .DS_Store
 Thumbs.db
+INTERNAL.md
