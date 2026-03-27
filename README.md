@@ -1,26 +1,55 @@
-# Arduino Mega LED Control
+# Arduino Mega IoT Control
 
-A real-time web interface for controlling an Arduino Mega LED over WebSocket. Any browser on the local network can toggle the LED and see live state updates instantly.
+A real-time web dashboard for controlling an Arduino Mega over WebSocket. Supports LED control and live HC-SR04 ultrasonic distance measurement, accessible from any browser on the local network.
+
+---
+
+## Projects
+
+### LED Control — `/lcd-control/`
+
+Toggle an Arduino LED in real time. State is synced instantly across all connected browser tabs.
+
+### Distance Measurement — `/distance-measurement/`
+
+Live HC-SR04 ultrasonic distance readings streamed over WebSocket. Displays current distance with a range bar, min/max stats, reading count, and a scrollable log. Unit toggle between cm and inches.
 
 ---
 
 ## Features
 
-- **Real-time control** — LED ON/OFF synced across all connected browser tabs instantly
-- **Connected clients panel** — see every IP on the network currently viewing the page
-- **IP detail view** — click any IP to inspect browser, OS, device type, active tabs, and full command history
-- **Serial console** — live log of all events (connects, disconnects, commands) with timestamps and IPs
-- **Server controls** — restart or stop the Flask server directly from the web UI with a confirmation dialog
-- **Initial state sync** — server queries Arduino on startup so the UI always reflects the real LED state
+- **Real-time WebSocket** — state synced across all connected clients instantly
+- **Connected clients panel** — see every IP currently viewing the LED control page
+- **IP detail view** — click any IP to inspect browser, OS, device, active tabs, and command history
+- **Serial console** — live log of all events with timestamps and IPs
+- **Server controls** — restart or stop the Flask server from the web UI with confirmation
+- **Initial state sync** — server queries Arduino on startup to reflect the real LED state
+- **Distance live stream** — HC-SR04 readings parsed from serial and broadcast via socket every 500 ms
 
 ---
 
 ## Hardware
 
+### LED Control
+
 | Component | Detail |
 |---|---|
 | Board | Arduino Mega 2560 |
 | LED Pin | Digital Pin 13 (built-in) |
+
+### Distance Measurement
+
+| Component | Detail |
+|---|---|
+| Sensor | HC-SR04 Ultrasonic |
+| TRIG Pin | Digital Pin 9 |
+| ECHO Pin | Digital Pin 10 |
+| Range | 2 cm – 400 cm |
+
+### Shared
+
+| Setting | Value |
+|---|---|
 | Serial Port | COM6 |
 | Baud Rate | 9600 |
 
@@ -30,15 +59,22 @@ A real-time web interface for controlling an Arduino Mega LED over WebSocket. An
 
 ```
 LED Control/
-├── app.py                  # Flask server, socket events, serial logic
+├── app.py                        # Flask server, socket events, serial logic
 ├── main/
-│   └── main.ino            # Arduino sketch
+│   └── main.ino                  # Arduino sketch (LED + HC-SR04)
 ├── templates/
-│   └── index.html          # HTML template
+│   ├── index.html                # Project gallery / dashboard
+│   ├── led_control.html          # LED control page
+│   └── distance_measurement.html # Distance measurement page
 ├── static/
-│   ├── css/style.css       # Styles
-│   └── js/main.js          # Client-side JavaScript
-└── Scaffold_File/          # Earlier prototype versions
+│   ├── css/
+│   │   ├── gallery.css           # Gallery styles
+│   │   ├── style.css             # LED control styles
+│   │   └── distance.css          # Distance measurement styles
+│   └── js/
+│       ├── main.js               # LED control client JS
+│       └── distance.js           # Distance measurement client JS
+└── Scaffold_File/                # Earlier prototype versions
 ```
 
 ---
@@ -64,13 +100,17 @@ pip install flask flask-socketio eventlet pyserial
 
 ### 1. Upload Arduino sketch
 
-Open `main/main.ino` in the Arduino IDE and upload it to your Arduino Mega. The sketch listens on Serial for `ON` and `OFF` commands and responds on Pin 13.
+Open `main/main.ino` in the Arduino IDE and upload to your Arduino Mega.
 
-> **Note:** To enable initial state detection, add a `STATE?` handler to your sketch — see the [Arduino Sketch](#arduino-sketch) section below.
+Wire the HC-SR04:
+- VCC → 5V
+- GND → GND
+- TRIG → Pin 9
+- ECHO → Pin 10
 
 ### 2. Set your COM port
 
-Edit `app.py` line 74 to match your system:
+Edit `app.py` to match your system (both occurrences):
 ```python
 arduino = serial.Serial("COM6", 9600)
 ```
@@ -89,32 +129,31 @@ Navigate to `http://localhost:8000` — or from any device on the same network, 
 
 ## Arduino Sketch
 
-The current sketch handles `ON` and `OFF`. To also support initial state detection, add the `STATE?` command:
+The sketch handles LED commands (`ON`, `OFF`, `STATE?`) and streams distance readings every 500 ms:
 
 ```cpp
-void setup() {
-  Serial.begin(9600);
-  pinMode(13, OUTPUT);
-  Serial.println("Arduino Ready");
-}
+// TRIG = Pin 9, ECHO = Pin 10, LED = Pin 13
 
-void loop() {
-  if (Serial.available()) {
-    String command = Serial.readStringUntil('\n');
-    command.trim();
-
-    if (command == "ON") {
-      digitalWrite(13, HIGH);
-      Serial.println("LED ON");
-    } else if (command == "OFF") {
-      digitalWrite(13, LOW);
-      Serial.println("LED OFF");
-    } else if (command == "STATE?") {
-      Serial.println(digitalRead(13) == HIGH ? "ON" : "OFF");
-    }
-  }
-}
+DIST:23.4    // normal reading (cm)
+DIST:-1.0    // out of range or no echo
 ```
+
+Serial protocol summary:
+
+| Direction | Message | Description |
+|---|---|---|
+| Host → Arduino | `ON\n` | Turn LED on |
+| Host → Arduino | `OFF\n` | Turn LED off |
+| Host → Arduino | `STATE?\n` | Query current LED state |
+| Arduino → Host | `LED ON` / `LED OFF` | LED command acknowledgement |
+| Arduino → Host | `ON` / `OFF` | Response to `STATE?` |
+| Arduino → Host | `DIST:XX.X` | Distance reading in cm (every 500 ms) |
 
 ---
 
+## Branches
+
+| Branch | Description |
+|---|---|
+| `main` | LED control only |
+| `feature/distance-measurement` | LED control + HC-SR04 distance measurement |
