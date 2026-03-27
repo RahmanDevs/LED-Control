@@ -53,9 +53,9 @@ void loop() {
     float dist = measureDistance();
     Serial.print("DIST:");
     if (dist > 0.0 && dist < 400.0) {
-      Serial.println(dist, 1);   // e.g. "DIST:23.4"
+      Serial.println(dist, 1);     // e.g. "DIST:23.4"
     } else {
-      Serial.println(-1, 1);     // out of range → "DIST:-1.0"
+      Serial.println(-1.0f, 1);    // out of range → "DIST:-1.0"
     }
   }
 }

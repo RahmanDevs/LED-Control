@@ -148,6 +148,8 @@ def serial_reader():
                 if line.startswith("DIST:"):
                     try:
                         val = float(line.split(":")[1])
+                        if val > 400.0 or val < -1.0:   # guard against garbage readings
+                            val = -1.0
                         distance_cm = round(val, 1)
                         socketio.emit("distance_update", {"cm": distance_cm})
                     except (ValueError, IndexError):
