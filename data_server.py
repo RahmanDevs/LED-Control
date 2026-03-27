@@ -3,7 +3,7 @@ Data Server — Arduino serial bridge (temporary) + future ESP-01 HTTP bridge
 Currently reads from COM6 serial. When ESP-01 is ready, serial_reader/monitor
 threads can be removed and the POST /api/sensor endpoint takes over.
 
-Requires: pip install flask pyserial
+Requires: pip install flask pyserial python-socketio[client]
 Run:      python data_server.py
 """
 
@@ -11,12 +11,14 @@ from flask import Flask, request, jsonify
 import serial
 import threading
 import time
+import socketio as sio_client
 from datetime import datetime
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-SERIAL_PORT = "COM6"
-BAUD_RATE   = 9600
+SERIAL_PORT    = "COM6"
+BAUD_RATE      = 9600
+UI_SERVER_URL  = "http://127.0.0.1:8000"
 
 # ── App + state ───────────────────────────────────────────────────────────────
 
@@ -42,6 +44,42 @@ def _ts():
     return datetime.now().strftime("%H:%M:%S")
 
 
+# ── Socket.IO client (persistent connection to ui_server) ────────────────────
+
+_sio = sio_client.Client(reconnection=True, reconnection_delay=2, logger=False, engineio_logger=False)
+
+
+@_sio.event(namespace="/internal")
+def connect():
+    print(f"[SIO] Connected to ui_server")
+
+
+@_sio.event(namespace="/internal")
+def disconnect():
+    print(f"[SIO] Disconnected from ui_server")
+
+
+def _start_sio():
+    while True:
+        try:
+            _sio.connect(UI_SERVER_URL, namespaces=["/internal"])
+            _sio.wait()
+        except Exception:
+            time.sleep(3)
+
+
+def _push_to_ui():
+    """Emit current state to ui_server via Socket.IO."""
+    if not _sio.connected:
+        return
+    with _lock:
+        payload = dict(_state)
+    try:
+        _sio.emit("state_push", payload, namespace="/internal")
+    except Exception:
+        pass
+
+
 def _set_connected(connected: bool):
     """Update connection state under lock."""
     global _arduino_connected
@@ -55,6 +93,7 @@ def _set_connected(connected: bool):
     if changed:
         status = "connected" if connected else "disconnected"
         print(f"[{_ts()}] Arduino {status}")
+        _push_to_ui()
 
 
 # ── Serial background tasks ───────────────────────────────────────────────────
@@ -86,15 +125,17 @@ def serial_reader():
                         val = float(line.split(":")[1])
                         cm = round(val, 1) if 3.0 <= val <= 30.0 else -1.0
                         with _lock:
-                            _state["distance_cm"]   = cm
-                            _state["last_update"]   = time.time()
+                            _state["distance_cm"]     = cm
+                            _state["last_update"]     = time.time()
                             _state["last_update_str"] = _ts()
+                        _push_to_ui()
                     except (ValueError, IndexError):
                         pass
                 elif line in ("ON", "OFF", "LED ON", "LED OFF"):
                     state = "ON" if "ON" in line else "OFF"
                     with _lock:
                         _state["led_state"] = state
+                    _push_to_ui()
             else:
                 time.sleep(0.01)
         except (serial.SerialException, OSError):
@@ -155,6 +196,7 @@ def post_sensor():
         _state["esp_connected"]   = True
         _state["last_update"]     = time.time()
         _state["last_update_str"] = _ts()
+    _push_to_ui()
     return jsonify({"ok": True})
 
 
@@ -203,6 +245,7 @@ def post_command():
             with _lock:
                 _state["led_state"] = cmd
             print(f"[{_ts()}] LED -> {cmd} (serial)")
+            _push_to_ui()
         except (serial.SerialException, OSError) as e:
             return jsonify({"error": f"serial write failed: {e}"}), 500
     else:
@@ -230,10 +273,12 @@ def status():
 
 if __name__ == "__main__":
     print(f"Data server starting on port 5001 (serial: {SERIAL_PORT} @ {BAUD_RATE})")
-    print("  GET  /api/sensor        <- ui_server polls state")
+    print(f"  UI server socket target: {UI_SERVER_URL} /internal namespace")
+    print("  GET  /api/sensor        <- direct state read")
     print("  POST /api/command       <- ui_server sends LED command")
     print("  POST /api/sensor        <- future ESP-01 pushes readings")
     print("  GET  /api/command       <- future ESP-01 polls commands")
     threading.Thread(target=monitor_arduino, daemon=True).start()
     threading.Thread(target=serial_reader,   daemon=True).start()
+    threading.Thread(target=_start_sio,      daemon=True).start()
     app.run(host="0.0.0.0", port=5001, debug=False, threaded=True)
