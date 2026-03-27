@@ -6,9 +6,12 @@
   <title>Distance Measurement — Arduino</title>
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap" rel="stylesheet">
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/distance.css') }}">
 </head>
 <body>
+
+  {% include 'nav.html' %}
 
   <div class="header">
     <p class="label">HC-SR04 &mdash; COM6 @ 9600 baud</p>

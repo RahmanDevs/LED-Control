@@ -1,0 +1,17 @@
+<nav class="site-nav">
+  <a class="nav-brand" href="/">iot.fikrow.com</a>
+  <div class="nav-links">
+    <a class="nav-link" href="/">Dashboard</a>
+    <a class="nav-link" href="/lcd-control/">LED Control</a>
+    <a class="nav-link" href="/distance-measurement/">Distance</a>
+  </div>
+</nav>
+<script>
+  (function () {
+    var path = location.pathname.replace(/\/$/, '') || '/';
+    document.querySelectorAll('.nav-link').forEach(function (a) {
+      var href = a.getAttribute('href').replace(/\/$/, '') || '/';
+      if (href === path) a.classList.add('active');
+    });
+  })();
+</script>

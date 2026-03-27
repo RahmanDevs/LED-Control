@@ -1,0 +1,56 @@
+/* ── site-wide navigation bar ──────────────────────────────────────────── */
+
+.site-nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 48px;
+  background: rgba(13, 15, 16, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid #2a2f33;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.nav-brand {
+  font-size: .72rem;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: #4a5258;
+  text-decoration: none;
+  transition: color .2s;
+}
+.nav-brand:hover { color: #c8d0d6; }
+
+.nav-links {
+  display: flex;
+  gap: 4px;
+}
+
+.nav-link {
+  font-size: .68rem;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: #4a5258;
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  transition: color .2s, border-color .2s, background .2s;
+}
+.nav-link:hover {
+  color: #c8d0d6;
+  background: rgba(255,255,255,.04);
+}
+.nav-link.active {
+  color: #c8d0d6;
+  border-color: #2a2f33;
+  background: rgba(255,255,255,.06);
+}
+
+/* push page content below the fixed bar */
+body { padding-top: 48px; }
