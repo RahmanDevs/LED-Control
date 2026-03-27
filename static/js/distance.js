@@ -215,3 +215,61 @@ socket.on("clients_update", (data) => {
 socket.on("distance_update", (data) => {
   applyReading(data.cm);
 });
+
+// ── Confirmation modal ─────────────────────────────────────────────────────
+
+const overlay         = document.getElementById("modal-overlay");
+const modalCard       = document.getElementById("modal-card");
+const modalIcon       = document.getElementById("modal-icon");
+const modalTitle      = document.getElementById("modal-title");
+const modalMsg        = document.getElementById("modal-msg");
+const modalConfirmBtn = document.getElementById("modal-confirm-btn");
+
+function showConfirm({ icon, title, msg, confirmText, color, onConfirm }) {
+  modalCard.style.setProperty("--modal-color", color);
+  modalConfirmBtn.style.setProperty("--modal-color", color);
+  modalIcon.textContent       = icon;
+  modalTitle.textContent      = title;
+  modalMsg.textContent        = msg;
+  modalConfirmBtn.textContent = confirmText;
+  modalConfirmBtn.onclick     = () => { closeModal(); onConfirm(); };
+  overlay.classList.add("open");
+}
+
+function closeModal() { overlay.classList.remove("open"); }
+
+overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+// ── Server controls ────────────────────────────────────────────────────────
+
+function shutdownServer() {
+  showConfirm({
+    icon: "⏹",
+    title: "Stop Server?",
+    msg: "This will shut down the Flask server. You will need to restart it manually from the terminal.",
+    confirmText: "Stop",
+    color: "#ff3b3b",
+    onConfirm: () => {
+      fetch("/shutdown", { method: "POST" }).catch(() => {});
+      document.body.innerHTML =
+        '<div style="font-family:monospace;color:#c8d0d6;display:flex;flex-direction:column;' +
+        'align-items:center;justify-content:center;height:100vh;gap:12px;">' +
+        '<span style="font-size:2rem">⏹</span>' +
+        '<span style="letter-spacing:.15em">Server stopped.</span></div>';
+    }
+  });
+}
+
+function restartServer() {
+  showConfirm({
+    icon: "↺",
+    title: "Restart Server?",
+    msg: "The server will restart. The page will automatically reconnect via WebSocket when it comes back online.",
+    confirmText: "Restart",
+    color: "#f5a623",
+    onConfirm: () => {
+      fetch("/restart", { method: "POST" }).catch(() => {});
+    }
+  });
+}

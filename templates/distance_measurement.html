@@ -114,6 +114,24 @@
     <span>Flask-SocketIO</span>
   </div>
 
+  <div class="server-controls">
+    <button class="server-btn server-btn-restart" onclick="restartServer()">&#x21BA; Restart</button>
+    <button class="server-btn server-btn-stop"    onclick="shutdownServer()">&#x23FC; Stop</button>
+  </div>
+
+  <!-- Confirmation modal -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal-card" id="modal-card">
+      <div class="modal-icon"  id="modal-icon"></div>
+      <div class="modal-title" id="modal-title"></div>
+      <div class="modal-msg"   id="modal-msg"></div>
+      <div class="modal-actions">
+        <button class="modal-cancel"  onclick="closeModal()">Cancel</button>
+        <button class="modal-confirm" id="modal-confirm-btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <script src="{{ url_for('static', filename='js/distance.js') }}"></script>
 
 </body>
